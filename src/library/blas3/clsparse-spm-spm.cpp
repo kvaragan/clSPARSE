@@ -383,7 +383,7 @@ clsparseStatus compute_nnzC_Ct_mergepath(int num_threads, int num_blocks, int j,
         }
         else if (mergepath_location == MERGEPATH_GLOBAL)
         nnzCt_new = *_nnzCt + counter * (2 * (mergebuffer_size + 2304));
-        cout << endl << "    ==> nnzCt_new = " << nnzCt_new << endl;
+        //cout << endl << "    ==> nnzCt_new = " << nnzCt_new << endl;
 
         cl::Context cxt = control->getContext();
 	
@@ -519,7 +519,7 @@ clsparseStatus compute_nnzC_Ct_opencl(int *_h_counter_one, cl_mem queue_one, cl_
                     {
                         num_threads = num_threads_queue[4];
                         mergebuffer_size += mergebuffer_size_queue[4];
-                        cout << "    ==> doing merge on device mem, mergebuffer_size = " << mergebuffer_size << endl << endl;
+                        //cout << "    ==> doing merge on device mem, mergebuffer_size = " << mergebuffer_size << endl << endl;
                       
                         run_status = compute_nnzC_Ct_mergepath(num_threads, num_blocks, j, mergebuffer_size, _h_counter_one[j], &count_next, MERGEPATH_GLOBAL, queue_one, csrRowPtrA, csrColIndA, csrValA, csrRowPtrB, csrColIndB, csrValB, csrRowPtrC, csrRowPtrCt, csrColIndCt, csrValCt, &_nnzCt, m, queue_one_h, control);
 
@@ -784,7 +784,7 @@ int copy_Ct_to_C_opencl(int *counter_one, cl_mem csrValC, cl_mem csrRowPtrC, cl_
     // STAGE 2 - STEP 1 : statistics
     int nnzCt = statistics(csrRowPtrCt_h, counter, counter_one, counter_sum, queue_one, m);
     // STAGE 2 - STEP 2 : create Ct
-    cout << "nnzCt == " <<  nnzCt << endl; 
+    //cout << "nnzCt == " <<  nnzCt << endl; 
 	
     cl_mem csrColIndCt = ::clCreateBuffer( cxt(), CL_MEM_READ_WRITE, nnzCt * sizeof( cl_int ), NULL, &run_status );
     cl_mem csrValCt    = ::clCreateBuffer( cxt(), CL_MEM_READ_WRITE, nnzCt * sizeof( cl_float ), NULL, &run_status );
@@ -826,7 +826,7 @@ int copy_Ct_to_C_opencl(int *counter_one, cl_mem csrValC, cl_mem csrRowPtrC, cl_
     //cout << endl;
 
     int nnzC = csrRowPtrC_h[m];
-    std::cout << "nnzC = " << nnzC << std::endl;
+    //std::cout << "nnzC = " << nnzC << std::endl;
 	
     matC->colIndices = ::clCreateBuffer( cxt(), CL_MEM_READ_WRITE, nnzC * sizeof( cl_int ), NULL, &run_status );	   
     matC->values =     ::clCreateBuffer( cxt(), CL_MEM_READ_WRITE, nnzC * sizeof( cl_float ), NULL, &run_status );
