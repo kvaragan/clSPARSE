@@ -9,42 +9,17 @@
 #include "clfunc_common.hpp"
 
 // Dummy Code to be deleted later
-clsparseStatus clsparseScsrSpGemm(clsparseCsrMatrix& sparseMatA, clsparseCsrMatrix& sparseMatB, clsparseCsrMatrix& sparseMatC, clsparseControl& control)
+clsparseStatus clsparseDcsrSpGemm(const clsparseCsrMatrix* sparseMatA, const clsparseCsrMatrix* sparseMatB, clsparseCsrMatrix* sparseMatC, const clsparseControl control)
 {
     std::cout << "sparseMat A dimensions = \n";
-    std::cout << " rows = " << sparseMatA.num_rows << std::endl;
-    std::cout << " cols = " << sparseMatA.num_cols << std::endl;
-    std::cout << "nnz = " << sparseMatA.num_nonzeros << std::endl;
+    std::cout << " rows = " << sparseMatA->num_rows << std::endl;
+    std::cout << " cols = " << sparseMatA->num_cols << std::endl;
+    std::cout << "nnz = " << sparseMatA->num_nonzeros << std::endl;
 
     std::cout << "sparseMat B dimensions = \n";
-    std::cout << " rows = " << sparseMatB.num_rows << std::endl;
-    std::cout << " cols = " << sparseMatB.num_cols << std::endl;
-    std::cout << "nnz = " << sparseMatB.num_nonzeros << std::endl;
-
-    std::cout << "sparseMat C dimensions = \n";
-    std::cout << " rows = " << sparseMatC.num_rows << std::endl;
-    std::cout << " cols = " << sparseMatC.num_cols << std::endl;
-    std::cout << "nnz = " << sparseMatC.num_nonzeros << std::endl;
-
-    return clsparseSuccess;
-}// end of function
-
-clsparseStatus clsparseDcsrSpGemm(clsparseCsrMatrix& sparseMatA, clsparseCsrMatrix& sparseMatB, clsparseCsrMatrix& sparseMatC, clsparseControl& control)
-{
-    std::cout << "sparseMat A dimensions = \n";
-    std::cout << " rows = " << sparseMatA.num_rows << std::endl;
-    std::cout << " cols = " << sparseMatA.num_cols << std::endl;
-    std::cout << "nnz = " << sparseMatA.num_nonzeros << std::endl;
-
-    std::cout << "sparseMat B dimensions = \n";
-    std::cout << " rows = " << sparseMatB.num_rows << std::endl;
-    std::cout << " cols = " << sparseMatB.num_cols << std::endl;
-    std::cout << "nnz = " << sparseMatB.num_nonzeros << std::endl;
-
-    std::cout << "sparseMat C dimensions = \n";
-    std::cout << " rows = " << sparseMatC.num_rows << std::endl;
-    std::cout << " cols = " << sparseMatC.num_cols << std::endl;
-    std::cout << "nnz = " << sparseMatC.num_nonzeros << std::endl;
+    std::cout << " rows = " << sparseMatB->num_rows << std::endl;
+    std::cout << " cols = " << sparseMatB->num_cols << std::endl;
+    std::cout << "nnz = " << sparseMatB->num_nonzeros << std::endl;
 
     return clsparseSuccess;
 }//
@@ -167,6 +142,7 @@ public:
 
         // Create the output CSR Matrix
         clsparseInitCsrMatrix(&csrMtxC);
+#if 0
         csrMtxC.num_nonzeros = row * col; // Assuming square matrices (may be = 2*nnz)
         csrMtxC.num_rows = row;
         csrMtxC.num_cols = col;
@@ -187,6 +163,7 @@ public:
         csrMtxC.rowBlocks = ::clCreateBuffer(ctx, CL_MEM_WRITE_ONLY,
             csrMtxC.rowBlockSize * sizeof(cl_ulong), NULL, &status);
         CLSPARSE_V(status, "::clCreateBuffer csrMtxC.rowBlocks");
+#endif
 
         // Initialize the scalar alpha & beta parameters
         clsparseInitScalar(&a);
@@ -198,6 +175,7 @@ public:
         b.value = ::clCreateBuffer(ctx, CL_MEM_READ_ONLY,
             1 * sizeof(T), NULL, &status);
         CLSPARSE_V(status, "::clCreateBuffer b.value");
+
     }// end of function
 
     void initialize_cpu_buffer()
@@ -269,7 +247,7 @@ public:
         CLSPARSE_V(::clReleaseMemObject(csrMtxC.values),     "clReleaseMemObject csrMtxC.values");
         CLSPARSE_V(::clReleaseMemObject(csrMtxC.colIndices), "clReleaseMemObject csrMtxC.colIndices");
         CLSPARSE_V(::clReleaseMemObject(csrMtxC.rowOffsets), "clReleaseMemObject csrMtxC.rowOffsets");
-        CLSPARSE_V(::clReleaseMemObject(csrMtxC.rowBlocks),  "clReleaseMemObject csrMtxC.rowBlocks");
+        //CLSPARSE_V(::clReleaseMemObject(csrMtxC.rowBlocks),  "clReleaseMemObject csrMtxC.rowBlocks");
 
         CLSPARSE_V(::clReleaseMemObject(a.value), "clReleaseMemObject alpha.value");
         CLSPARSE_V(::clReleaseMemObject(b.value), "clReleaseMemObject beta.value");
@@ -303,7 +281,7 @@ private:
 template<> void
 xSpMSpM<float>::xSpMSpM_Function(bool flush)
 {
-    clsparseStatus status = clsparseScsrSpGemm(csrMtx, csrMtx, csrMtxC, control);
+    clsparseStatus status = clsparseScsrSpGemm(&csrMtx, &csrMtx, &csrMtxC, control);
 
     if (flush)
         clFinish(queue);
@@ -313,7 +291,7 @@ xSpMSpM<float>::xSpMSpM_Function(bool flush)
 template<> void
 xSpMSpM<double>::xSpMSpM_Function(bool flush)
 {
-    clsparseStatus status = clsparseDcsrSpGemm(csrMtx, csrMtx, csrMtxC, control);
+    clsparseStatus status = clsparseDcsrSpGemm(&csrMtx, &csrMtx, &csrMtxC, control);
 
     if (flush)
         clFinish(queue);
