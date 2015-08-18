@@ -141,30 +141,8 @@ public:
         if (fileError != clsparseSuccess)
             throw clsparse::io_exception("Could not read matrix market data from disk");
 
-        // Create the output CSR Matrix
+        // Initilize the output CSR Matrix
         clsparseInitCsrMatrix(&csrMtxC);
-#if 0
-        csrMtxC.num_nonzeros = row * col; // Assuming square matrices (may be = 2*nnz)
-        csrMtxC.num_rows = row;
-        csrMtxC.num_cols = col;
-        clsparseCsrMetaSize(&csrMtxC, control);
-
-        csrMtxC.values = ::clCreateBuffer(ctx, CL_MEM_WRITE_ONLY,
-            csrMtxC.num_nonzeros * sizeof(T), NULL, &status);
-        CLSPARSE_V(status, "::clCreateBuffer csrMtxC.values");
-
-        csrMtxC.colIndices = ::clCreateBuffer(ctx, CL_MEM_WRITE_ONLY,
-            csrMtxC.num_nonzeros * sizeof(cl_int), NULL, &status);
-        CLSPARSE_V(status, "::clCreateBuffer csrMtxC.colIndices");
-
-        csrMtxC.rowOffsets = ::clCreateBuffer(ctx, CL_MEM_WRITE_ONLY,
-            (csrMtxC.num_rows + 1) * sizeof(cl_int), NULL, &status);
-        CLSPARSE_V(status, "::clCreateBuffer csrMtxC.rowOffsets");
-
-        csrMtxC.rowBlocks = ::clCreateBuffer(ctx, CL_MEM_WRITE_ONLY,
-            csrMtxC.rowBlockSize * sizeof(cl_ulong), NULL, &status);
-        CLSPARSE_V(status, "::clCreateBuffer csrMtxC.rowBlocks");
-#endif
 
         // Initialize the scalar alpha & beta parameters
         clsparseInitScalar(&a);
@@ -191,35 +169,18 @@ public:
         CLSPARSE_V(::clEnqueueFillBuffer(queue, b.value, &beta, sizeof(T), 0,
             sizeof(T) * 1, 0, NULL, NULL), "::clEnqueueFillBuffer beta.value");
 
-#if 0
-        T scalar_f = 0;
-
-        CLSPARSE_V(::clEnqueueFillBuffer(queue, csrMtxC.values, &scalar_f, sizeof(T), 0,
-            sizeof(T) * csrMtxC.num_nonzeros, 0, NULL, NULL), "::clEnqueueFillBuffer csrMtxC.values");
-
-        cl_int scalar_i = 0;
-        CLSPARSE_V(::clEnqueueFillBuffer(queue, csrMtxC.colIndices, &scalar_i, sizeof(cl_int), 0,
-            sizeof(cl_int) * csrMtxC.num_nonzeros, 0, NULL, NULL), "::clEnqueueFillBuffer csrMtxC.colIndices");
-
-        CLSPARSE_V(::clEnqueueFillBuffer(queue, csrMtxC.rowOffsets, &scalar_i, sizeof(cl_int), 0,
-            sizeof(cl_int) * (csrMtxC.num_rows + 1), 0, NULL, NULL), "::clEnqueueFillBuffer csrMtxC.rowOffsets");
-#endif
-
     }// end of function
 
     void reset_gpu_write_buffer()
     {
-        T scalar_f  = 0;
-        
-        CLSPARSE_V(::clEnqueueFillBuffer(queue, csrMtxC.values, &scalar_f, sizeof(T), 0,
-            sizeof(T) * csrMtxC.num_nonzeros, 0, NULL, NULL), "::clEnqueueFillBuffer csrMtxC.values");
-        
-        cl_int scalar_i = 0;
-        CLSPARSE_V(::clEnqueueFillBuffer(queue, csrMtxC.colIndices, &scalar_i, sizeof(cl_int), 0,
-            sizeof(cl_int) * csrMtxC.num_nonzeros, 0, NULL, NULL), "::clEnqueueFillBuffer csrMtxC.colIndices");
+        // Every call to clsparseScsrSpGemm() allocates memory to csrMtxC, therefore freeing the memory
+        CLSPARSE_V(::clReleaseMemObject(csrMtxC.values), "clReleaseMemObject csrMtxC.values");
+        CLSPARSE_V(::clReleaseMemObject(csrMtxC.colIndices), "clReleaseMemObject csrMtxC.colIndices");
+        CLSPARSE_V(::clReleaseMemObject(csrMtxC.rowOffsets), "clReleaseMemObject csrMtxC.rowOffsets");
 
-        CLSPARSE_V(::clEnqueueFillBuffer(queue, csrMtxC.rowOffsets, &scalar_i, sizeof(cl_int), 0,
-            sizeof(cl_int) * (csrMtxC.num_rows + 1), 0, NULL, NULL), "::clEnqueueFillBuffer csrMtxC.rowOffsets");
+        // Initilize the output CSR Matrix
+        clsparseInitCsrMatrix(&csrMtxC);
+
     }// end of function
 
     void read_gpu_buffer()
@@ -248,8 +209,13 @@ public:
         CLSPARSE_V(::clReleaseMemObject(csrMtx.rowOffsets), "clReleaseMemObject csrMtx.rowOffsets");
         //CLSPARSE_V(::clReleaseMemObject(csrMtx.rowBlocks),  "clReleaseMemObject csrMtx.rowBlocks");
 
+        if (csrMtxC.values != nullptr)
         CLSPARSE_V(::clReleaseMemObject(csrMtxC.values),     "clReleaseMemObject csrMtxC.values");
+
+        if (csrMtxC.colIndices != nullptr)
         CLSPARSE_V(::clReleaseMemObject(csrMtxC.colIndices), "clReleaseMemObject csrMtxC.colIndices");
+
+        if (csrMtxC.rowOffsets != nullptr)
         CLSPARSE_V(::clReleaseMemObject(csrMtxC.rowOffsets), "clReleaseMemObject csrMtxC.rowOffsets");
         //CLSPARSE_V(::clReleaseMemObject(csrMtxC.rowBlocks),  "clReleaseMemObject csrMtxC.rowBlocks");
 
