@@ -141,7 +141,7 @@ public:
 
         err = cudaMemcpy(dev_csrValA, &values[0], values.size() * sizeof(T), cudaMemcpyHostToDevice);
         CUDA_V_THROW(err, "cudaMalloc device_row_offsets");
-#if 0
+
         nnzTotalDevHostPtr = &nnzC;
         cusparseSetPointerMode(handle, CUSPARSE_POINTER_MODE_HOST);
 
@@ -150,12 +150,10 @@ public:
 
         // step 2: allocate buffer for csrgemm2Nnz and csrgemm2
         createBuffersNNZ_C();
-#endif
     }// end of function
 
     void reset_gpu_write_buffer()
     {
-#if 0
         cudaError_t err = cudaMemset(dev_csrValC, 0x0, nnzC * sizeof(T));
         CUDA_V_THROW(err, "cudaMemset dev_csrValC " + std::to_string(nnzC));
 
@@ -164,16 +162,6 @@ public:
 
         err = cudaMemset(dev_csrRowPtrC, 0x0, (n_rows+1) * sizeof(int));
         CUDA_V_THROW(err, "cudaMemset dev_csrRowPtrC " + std::to_string(nnzC));
-#endif
-
-        CUDA_V_THROW(cudaFree(dev_csrValC), "cudafree dev_csrValC");
-        CUDA_V_THROW(cudaFree(dev_csrRowPtrC), "cudafree dev_csrRowPtrC");
-        CUDA_V_THROW(cudaFree(dev_csrColIndC), "cudafree dev_csrColIndC");
-
-        CUDA_V_THROW(cudaFree(buffer), "cudafree buffer");
-
-        // step 5: destroy the opaque structure
-        cusparseDestroyCsrgemm2Info(info);
     }
 
     void read_gpu_buffer()
@@ -185,7 +173,7 @@ public:
         CUDA_V_THROW(cudaFree(dev_csrValA),    "cudafree dev_csrValA");
         CUDA_V_THROW(cudaFree(dev_csrRowPtrA), "cudafree dev_csrRowPtrA");
         CUDA_V_THROW(cudaFree(dev_csrColIndA), "cudafree dev_csrColIndA");
-#if 0
+
         CUDA_V_THROW(cudaFree(dev_csrValC),    "cudafree dev_csrValC");
         CUDA_V_THROW(cudaFree(dev_csrRowPtrC), "cudafree dev_csrRowPtrC");
         CUDA_V_THROW(cudaFree(dev_csrColIndC), "cudafree dev_csrColIndC");
@@ -194,7 +182,6 @@ public:
 
         // step 5: destroy the opaque structure
         cusparseDestroyCsrgemm2Info(info);
-#endif
 
         row_offsets.clear();
         col_indices.clear();
@@ -355,15 +342,6 @@ xSpMSpM<double> ::createBuffersNNZ_C(void)
 template<> void
 xSpMSpM<float> ::xSpMSpM_Function(bool flush)
 {
-    nnzTotalDevHostPtr = &nnzC;
-    cusparseSetPointerMode(handle, CUSPARSE_POINTER_MODE_HOST);
-
-    //  step 1: create an opaque structure
-    cusparseCreateCsrgemm2Info(&info);
-
-    // step 2: allocate buffer for csrgemm2Nnz and csrgemm2
-    createBuffersNNZ_C();
-
     size_t nnzA = values.size();
     // step 4: finish sparsity pattern and value of C 
     // Remark: set csrValC to null if only sparsity pattern is required. 
@@ -383,15 +361,6 @@ xSpMSpM<float> ::xSpMSpM_Function(bool flush)
 template<> void
 xSpMSpM<double> ::xSpMSpM_Function(bool flush)
 {
-    nnzTotalDevHostPtr = &nnzC;
-    cusparseSetPointerMode(handle, CUSPARSE_POINTER_MODE_HOST);
-
-    //  step 1: create an opaque structure
-    cusparseCreateCsrgemm2Info(&info);
-
-    // step 2: allocate buffer for csrgemm2Nnz and csrgemm2
-    createBuffersNNZ_C();
-
     size_t nnzA = values.size();
     // step 4: finish sparsity pattern and value of C 
     // Remark: set csrValC to null if only sparsity pattern is required. 
