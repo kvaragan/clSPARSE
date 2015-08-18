@@ -111,7 +111,7 @@ public:
         csrMtx.num_nonzeros = nnz;
         csrMtx.num_rows = row;
         csrMtx.num_cols = col;
-        clsparseCsrMetaSize(&csrMtx, control);
+        //clsparseCsrMetaSize(&csrMtx, control);
 
         cl_int status;
         csrMtx.values = ::clCreateBuffer(ctx, CL_MEM_READ_ONLY,
@@ -125,10 +125,11 @@ public:
         csrMtx.rowOffsets = ::clCreateBuffer(ctx, CL_MEM_READ_ONLY,
             (csrMtx.num_rows + 1) * sizeof(cl_int), NULL, &status);
         CLSPARSE_V(status, "::clCreateBuffer csrMtx.rowOffsets");
-
+#if 0
         csrMtx.rowBlocks = ::clCreateBuffer(ctx, CL_MEM_READ_ONLY,
             csrMtx.rowBlockSize * sizeof(cl_ulong), NULL, &status);
         CLSPARSE_V(status, "::clCreateBuffer csrMtx.rowBlocks");
+#endif
 
         if (typeid(T) == typeid(float))
             fileError = clsparseSCsrMatrixfromFile(&csrMtx, sparseFile.c_str(), control);
@@ -190,6 +191,7 @@ public:
         CLSPARSE_V(::clEnqueueFillBuffer(queue, b.value, &beta, sizeof(T), 0,
             sizeof(T) * 1, 0, NULL, NULL), "::clEnqueueFillBuffer beta.value");
 
+#if 0
         T scalar_f = 0;
 
         CLSPARSE_V(::clEnqueueFillBuffer(queue, csrMtxC.values, &scalar_f, sizeof(T), 0,
@@ -201,6 +203,8 @@ public:
 
         CLSPARSE_V(::clEnqueueFillBuffer(queue, csrMtxC.rowOffsets, &scalar_i, sizeof(cl_int), 0,
             sizeof(cl_int) * (csrMtxC.num_rows + 1), 0, NULL, NULL), "::clEnqueueFillBuffer csrMtxC.rowOffsets");
+#endif
+
     }// end of function
 
     void reset_gpu_write_buffer()
@@ -242,7 +246,7 @@ public:
         CLSPARSE_V(::clReleaseMemObject(csrMtx.values),     "clReleaseMemObject csrMtx.values");
         CLSPARSE_V(::clReleaseMemObject(csrMtx.colIndices), "clReleaseMemObject csrMtx.colIndices");
         CLSPARSE_V(::clReleaseMemObject(csrMtx.rowOffsets), "clReleaseMemObject csrMtx.rowOffsets");
-        CLSPARSE_V(::clReleaseMemObject(csrMtx.rowBlocks),  "clReleaseMemObject csrMtx.rowBlocks");
+        //CLSPARSE_V(::clReleaseMemObject(csrMtx.rowBlocks),  "clReleaseMemObject csrMtx.rowBlocks");
 
         CLSPARSE_V(::clReleaseMemObject(csrMtxC.values),     "clReleaseMemObject csrMtxC.values");
         CLSPARSE_V(::clReleaseMemObject(csrMtxC.colIndices), "clReleaseMemObject csrMtxC.colIndices");
