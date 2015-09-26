@@ -40,6 +40,7 @@
 #include "internal/kernel-cache.hpp"
 #include "internal/kernel-wrap.hpp"
 #include "internal/clsparse-internal.hpp"
+#include "clsparse-spmxspm.hpp"
 
 #include <cmath>
 
@@ -55,12 +56,6 @@
 #define MERGELIST_INITSIZE 256
 #define BHSPARSE_SUCCESS 0
  
-#define CHECKMAL(a, b) \
-    if(a==NULL) \
-    {     \
-        std::cerr << "Malloc Error:" << b << std::endl; \
-        exit(1); \
-    }
  
 using namespace std;
 
@@ -546,23 +541,19 @@ clsparseStatus compute_nnzC_Ct_opencl(int *_h_counter_one, cl_mem queue_one, cl_
                         num_threads = num_threads_queue[4];
                         mergebuffer_size += mergebuffer_size_queue[4];
                         //cout << "    ==> doing merge on device mem, mergebuffer_size = " << mergebuffer_size << endl << endl;
-                      
                         run_status = compute_nnzC_Ct_mergepath(num_threads, num_blocks, j, mergebuffer_size, _h_counter_one[j], &count_next, MERGEPATH_GLOBAL, queue_one, csrRowPtrA, csrColIndA, csrValA, csrRowPtrB, csrColIndB, csrValB, csrRowPtrC, csrRowPtrCt, csrColIndCt, csrValCt, &_nnzCt, m, queue_one_h, control);
 
                     }
                 }
-
             }
-      
-        if (run_status != clsparseSuccess)
+            if (run_status != clsparseSuccess)
             {
                return clsparseInvalidKernelExecution;
             }
         }
     }
-    
-    return clsparseSuccess;
 
+    return clsparseSuccess;
 }
 
 
@@ -707,12 +698,248 @@ int copy_Ct_to_C_opencl(int *counter_one, cl_mem csrValC, cl_mem csrRowPtrC, cl_
             }
         }
     }
-    
     return clsparseSuccess;
+}//
 
+CLSPARSE_EXPORT clsparseStatus
+clsparseSpMSpM_CreateInit(const clsparseCsrMatrix* sparseMatA,  //input
+                          const clsparseCsrMatrix* sparseMatB,  //input
+                          const clsparseControl control,        //input
+                          clSparseSpGEMM* spgemmInfo,           //output
+                          size_t* rowPtrCtSizeInBytes,          //output
+                          size_t* buffer_d_SizeInBytes)          //output
+{
+    if (!clsparseInitialized)
+    {
+        return clsparseNotInitialized;
+    }
+
+    if (control == nullptr)
+    {
+        return clsparseInvalidControlObject;
+    }
+
+    const clsparseCsrMatrixPrivate* matA = static_cast<const clsparseCsrMatrixPrivate*>(sparseMatA);
+    const clsparseCsrMatrixPrivate* matB = static_cast<const clsparseCsrMatrixPrivate*>(sparseMatB);
+
+    int m = matA->num_rows;
+    int k1 = matA->num_cols;
+    int k2 = matB->num_rows;
+    int n = matB->num_cols;
+    int nnzA = matA->num_nonzeros;
+    int nnzB = matB->num_nonzeros;
+
+    if (k1 != k2)
+    {
+        std::cerr << "A.n and B.m don't match!" << std::endl;
+        return clsparseInvalidMatrixDimensions;
+    }
+
+    *spgemmInfo = nullptr;
+    *spgemmInfo = new _sparseSpGemm();
+    if (*spgemmInfo == nullptr)
+    {
+        return clsparseOutOfHostMemory;
+    }
+
+    (*spgemmInfo)->csrRowPtrCt_h.resize(m + 1, 0);
+    (*spgemmInfo)->csrRowPtrC_h.resize(m + 1, 0);
+    // statistics
+    (*spgemmInfo)->counter.resize(NUM_SEGMENTS, 0);
+    (*spgemmInfo)->counter_one.resize(NUM_SEGMENTS + 1, 0);
+    (*spgemmInfo)->counter_sum.resize(NUM_SEGMENTS + 1, 0);
+    (*spgemmInfo)->queue_one.resize(m * TUPLE_QUEUE, 0);
+
+    *rowPtrCtSizeInBytes = (m + 1)  * sizeof(cl_int);
+    *buffer_d_SizeInBytes = TUPLE_QUEUE * m * sizeof(int);
+
+    (*spgemmInfo)->csrRowPtrA = matA->rowOffsets;
+    (*spgemmInfo)->csrColIndA = matA->colIndices;
+    (*spgemmInfo)->csrValA    = matA->values;
+    (*spgemmInfo)->csrRowPtrB = matB->rowOffsets;
+    (*spgemmInfo)->csrColIndB = matB->colIndices;
+    (*spgemmInfo)->csrValB    = matB->values;
+
+    (*spgemmInfo)->m = m;
+    (*spgemmInfo)->n = n;
+
+    return clsparseSuccess;
+}//
+
+CLSPARSE_EXPORT clsparseStatus
+clsparseSpMSpM_ReleaseSpmSpm(clSparseSpGEMM* spgemmInfo)
+{
+    delete *spgemmInfo;
+    if (*spgemmInfo == nullptr)
+    {
+        return clsparseInvalidControlObject;
+    }
+    (*spgemmInfo)->counter.clear();
+    (*spgemmInfo)->counter_one.clear();
+    (*spgemmInfo)->counter_sum.clear();
+    (*spgemmInfo)->queue_one.clear();
+    (*spgemmInfo)->csrRowPtrCt_h.clear();
+    (*spgemmInfo)->csrRowPtrC_h.clear();
+    *spgemmInfo = nullptr;
+    return clsparseSuccess;
 }
- 
 
+CLSPARSE_EXPORT clsparseStatus
+clsparseSpMSpM_ComputennzCtExt(cl_mem csrRowPtrCt_d,        // Allocated memory of size rowPtrCtSizeInBytes
+                             size_t rowPtrCtSizeInBytes,
+                             size_t singleElemSize,
+                             cl_mem buffer_d,
+                             size_t buffer_d_SizeInBytes,
+                             size_t *nnzCt,               // Output
+                             clSparseSpGEMM spgemmInfo,
+                             const clsparseControl control)
+{
+    cl_int run_status;
+    int pattern = 0;
+    run_status = clEnqueueFillBuffer(control->queue(), csrRowPtrCt_d, &pattern, singleElemSize, 0, rowPtrCtSizeInBytes, 0, NULL, NULL);
+    if (run_status != CL_SUCCESS)
+    {
+        return clsparseInvalidOperation;
+    }
+
+    // STAGE 1
+    compute_nnzCt(spgemmInfo->m, spgemmInfo->csrRowPtrA, spgemmInfo->csrColIndA, spgemmInfo->csrRowPtrB, 
+        spgemmInfo->csrColIndB, csrRowPtrCt_d, control);
+
+    run_status = clEnqueueReadBuffer(control->queue(),
+                                      csrRowPtrCt_d,
+                                      1,
+                                      0,
+                                      rowPtrCtSizeInBytes,
+                                      spgemmInfo->csrRowPtrCt_h.data(),
+                                      0,
+                                      0,
+                                      0);
+
+    // STAGE 2 - STEP 1 : statistics
+    spgemmInfo->nnzCt = statistics(spgemmInfo->csrRowPtrCt_h.data(), 
+                           spgemmInfo->counter.data(), 
+                           spgemmInfo->counter_one.data(), 
+                           spgemmInfo->counter_sum.data(), 
+                           spgemmInfo->queue_one.data(), 
+                           spgemmInfo->m);
+    
+    spgemmInfo->queue_one_d = buffer_d;
+    //copy queue_one
+    run_status = clEnqueueWriteBuffer(control->queue(),
+                                      spgemmInfo->queue_one_d,
+                                      1,
+                                      0,
+                                      buffer_d_SizeInBytes,
+                                      spgemmInfo->queue_one.data(),
+                                      0,
+                                      0,
+                                      0);
+    if (run_status != CL_SUCCESS)
+    {
+        return clsparseInvalidOperation;
+    }
+
+    *nnzCt = spgemmInfo->nnzCt;
+
+    return clsparseSuccess;
+}//
+
+CLSPARSE_EXPORT clsparseStatus
+clsparseSpMSpM_ScsrSpmSpmnnzC(cl_mem csrRowPtrC_d,          // ( m+1) * sizeof(int) - memory allocated
+                       cl_mem csrRowPtrCt_d,         // ( m+1) * sizeof(int) - memory allocated
+                       cl_mem* csrColIndCt_d,          // nnzCt * sizeof(int)
+                       cl_mem* csrValCt_d,             // nnzCt * sizeof(float) - Single Precision
+                       int* nnzC,                      // nnz of Output matrix
+                       clSparseSpGEMM spgemmInfo, 
+                       const clsparseControl control)
+{
+    cl_int run_status = CL_SUCCESS;
+    // Compute the actual nnzC and the values of output C
+
+    compute_nnzC_Ct_opencl( spgemmInfo->counter_one.data(), 
+                            spgemmInfo->queue_one_d, 
+                            spgemmInfo->csrRowPtrA, spgemmInfo->csrColIndA, spgemmInfo->csrValA, 
+                            spgemmInfo->csrRowPtrB, spgemmInfo->csrColIndB, spgemmInfo->csrValB, 
+                            csrRowPtrC_d, csrRowPtrCt_d, csrColIndCt_d, csrValCt_d, 
+                            spgemmInfo->n, spgemmInfo->nnzCt, spgemmInfo->m, 
+                            spgemmInfo->queue_one.data(), control);
+    // STAGE 3 - 
+    run_status = clEnqueueReadBuffer(control->queue(),
+                                      csrRowPtrC_d,
+                                      1,
+                                      0,
+                                      (spgemmInfo->m + 1)*sizeof(cl_int),
+                                      spgemmInfo->csrRowPtrC_h.data(),
+                                       0,
+                                       0,
+                                       0);
+
+    int old_val;
+    int new_val;
+    int m = spgemmInfo->m;
+    old_val = spgemmInfo->csrRowPtrC_h[0];
+    spgemmInfo->csrRowPtrC_h[0] = 0;
+    for (int i = 1; i <= m; i++)
+    {
+        new_val = spgemmInfo->csrRowPtrC_h[i];
+        spgemmInfo->csrRowPtrC_h[i] = old_val + spgemmInfo->csrRowPtrC_h[i - 1];
+        old_val = new_val;
+    }
+
+     *nnzC = spgemmInfo->csrRowPtrC_h[m];
+
+     return clsparseSuccess;
+}// end
+
+// Fill sparsity pattern and values of C
+CLSPARSE_EXPORT clsparseStatus
+clsparseSpMSpM_FillScsrC(cl_mem csrRowPtrC_d,
+                         cl_mem csrColIndC_d, 
+                         cl_mem csrValC_d, 
+                         cl_mem csrRowPtrCt_d,
+                         cl_mem csrColIndCt_d,
+                         cl_mem csrValCt_d,
+                         int nnzC, 
+                         clSparseSpGEMM spgemmInfo, 
+                         const clsparseControl control)
+{
+    cl_int run_status = CL_SUCCESS;
+
+    if (!clsparseInitialized)
+    {
+        return clsparseNotInitialized;
+    }
+
+    run_status = clEnqueueWriteBuffer(control->queue(),
+                                       csrRowPtrC_d,
+                                       1,
+                                       0,
+                                       (spgemmInfo->m + 1)*sizeof(cl_int),
+                                       spgemmInfo->csrRowPtrC_h.data(),
+                                       0,
+                                       0,
+                                       0);
+    if (run_status != CL_SUCCESS)
+    {
+        return clsparseInvalidOperation;
+    }
+
+    copy_Ct_to_C_opencl(
+                          spgemmInfo->counter_one.data(), 
+                          csrValC_d, 
+                          csrRowPtrC_d, 
+                          csrColIndC_d, 
+                          csrValCt_d, 
+                          csrRowPtrCt_d, 
+                          csrColIndCt_d, 
+                          spgemmInfo->queue_one_d, 
+                          control);
+
+    return clsparseSuccess;
+}//
+ 
+#if 1 // this will be removed later
  CLSPARSE_EXPORT clsparseStatus
         clsparseScsrSpGemm( 
         const clsparseCsrMatrix* sparseMatA,
@@ -755,14 +982,14 @@ int copy_Ct_to_C_opencl(int *counter_one, cl_mem csrValC, cl_mem csrRowPtrC, cl_
     cl_mem csrRowPtrB = matB->rowOffsets;
     cl_mem csrColIndB = matB->colIndices;
     cl_mem csrValB    = matB->values;
-    
+
     cl::Context cxt = control->getContext();
-    
+
     matC->rowOffsets = ::clCreateBuffer( cxt(), CL_MEM_READ_WRITE, (m + 1) * sizeof( cl_int ), NULL, &run_status );
-    
+
     int pattern = 0;
     clEnqueueFillBuffer(control->queue(), matC->rowOffsets, &pattern, sizeof(cl_int), 0, (m + 1)*sizeof(cl_int), 0, NULL, NULL);
-                        
+
     cl_mem csrRowPtrC = matC->rowOffsets;
 
     std::vector<int> csrRowPtrC_h(m + 1, 0);
@@ -871,6 +1098,7 @@ int copy_Ct_to_C_opencl(int *counter_one, cl_mem csrValC, cl_mem csrRowPtrC, cl_
     ::clReleaseMemObject(csrColIndCt);
     ::clReleaseMemObject(csrValCt);
 }
+#endif
 
 int statistics(int *_h_csrRowPtrCt, int *_h_counter, int *_h_counter_one, int *_h_counter_sum, int *_h_queue_one, int _m)
 {

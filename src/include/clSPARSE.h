@@ -68,6 +68,9 @@ extern "C" {
         clsparseIterationsExceeded,
         clsparseToleranceNotReached,
         clsparseSolverError,
+
+        /* SpMxSpM */
+        clsparseInvalidMatrixDimensions = -3048,  /**< Input matrices cannot be multiplied - cols of A != rows of B */
     } clsparseStatus;
 
 
@@ -464,6 +467,7 @@ CLSPARSE_EXPORT clsparseStatus
 clsparseDdense2csr(const cldenseMatrix* A, clsparseCsrMatrix* csr,
                    const clsparseControl control);
 
+typedef struct _sparseSpGemm* clSparseSpGEMM;
   /*!
    * \brief Single Precision CSR Sparse Matrix times Sparse Matrix
    * \details \f$ C \leftarrow A \ast B \f$
@@ -481,6 +485,101 @@ clsparseDdense2csr(const cldenseMatrix* A, clsparseCsrMatrix* csr,
               clsparseCsrMatrix* sparseMatC,
         const clsparseControl control );
 
+ /*!
+ * \brief Creates auxilary data structure for  CSR Sparse Matrix times Sparse Matrix operation
+ * \details \f$ C \leftarrow A \ast B \f$ - Step 1
+ * \param[in] sparseMatA Input CSR sparse matrix
+ * \param[in] sparseMatB Input CSR sparse matrix
+ * \param[in] control A valid clsparseControl created with clsparseCreateControl
+ * \param[out] spgemmInfo clSparseSpGEMM auxiliary data structre is created
+ * \param[out] rowPtrCtSizeInBytes - Size in Bytes for the temporary device to be allocated
+ * \param[out] buffer_d_SizeInBytes - Size in Bytes for the the device memory to be allocated
+ * \ingroup BLAS-3
+ */
+ CLSPARSE_EXPORT clsparseStatus
+     clsparseCreateInitSpmSpm(const clsparseCsrMatrix* sparseMatA, 
+                              const clsparseCsrMatrix* sparseMatB,
+                              const clsparseControl control, 
+                              clSparseSpGEMM* spgemmInfo,  
+                              size_t* rowPtrCtSizeInBytes, 
+                              size_t* buffer_d_SizeInBytes);
+ /*!
+ * \brief Free auxilary data structure used in CSR Sparse Matrix times Sparse Matrix operation
+ * \details \f$ C \leftarrow A \ast B \f$
+ * \param[in] spgemmInfo clSparseSpGEMM auxiliary data structre created with clsparseCreateInitSpmSpm
+ * \ingroup BLAS-3
+ */
+ CLSPARSE_EXPORT clsparseStatus
+     clsparseReleaseSpmSpm(clSparseSpGEMM* spgemmInfo);
+
+ /*!
+ * \brief Computes size of temporary buffers used in CSR Sparse Matrix times Sparse Matrix operation
+ * \details \f$ C \leftarrow A \ast B \f$ Step 2
+ * \param[in] csrRowPtrCt_d Device memory of size rowPtrCtSizeInBytes
+ * \param[in] rowPtrCtSizeInBytes Size in Bytes of csrRowPtrCt_d
+ * \param[in] singleElemSize - Size in Bytes of single element of csrRowPtrCt_d
+ * \param[in] buffer_d device memory of size buffer_d_SizeInBytes
+ * \param[in] buffer_d_SizeInBytes size in bytes of the device memory buffer_d
+ * \param[out] nnzCt - stores nnz of Ct 
+ * \param[in] spgemmInfo clSparseSpGEMM auxiliary data structre created with clsparseCreateInitSpmSpm
+ * \param[in] control A valid clsparseControl created with clsparseCreateControl
+ * \ingroup BLAS-3
+ */
+ CLSPARSE_EXPORT clsparseStatus
+     clsparseSpMSpM_ComputennzCtExt(cl_mem csrRowPtrCt_d,
+                                    size_t rowPtrCtSizeInBytes,
+                                    size_t singleElemSize,
+                                    cl_mem buffer_d,
+                                    size_t buffer_d_SizeInBytes,
+                                    size_t *nnzCt,               
+                                    clSparseSpGEMM spgemmInfo,
+                                    const clsparseControl control);
+
+ /*!
+ * \brief Computes column indices, values and nnz of output CSR matrix C of CSR Sparse Matrix times Sparse Matrix operation
+ * \details \f$ C \leftarrow A \ast B \f$ Step 3
+ * \param[in] csrRowPtrC_d  Device memory of size rowPtrCtSizeInBytes
+ * \param[in] csrRowPtrCt_d Device memory of size rowPtrCtSizeInBytes
+ * \param[out] csrColIndCt_d - device memory column indices of temporary CSR output matrix (nnzCt * sizeof(int))
+ * \param[out] csrValCt_d  device memory of values of temporary CSR output matrix (nnzCt * sizeof(float/double))
+ * \param[out] nnzC number of nonzeroes in output CSR C matrix
+ * \param[out] nnzCt - stores nnz of Ct
+ * \param[in] spgemmInfo clSparseSpGEMM auxiliary data structre created with clsparseCreateInitSpmSpm
+ * \param[in] control A valid clsparseControl created with clsparseCreateControl
+ * \ingroup BLAS-3
+ */
+ CLSPARSE_EXPORT clsparseStatus
+     clsparseSpMSpM_ScsrSpmSpmnnzC(cl_mem csrRowPtrC_d,          // ( m+1) * sizeof(int) - memory allocated
+                                   cl_mem csrRowPtrCt_d,         // ( m+1) * sizeof(int) - memory allocated
+                                   cl_mem* csrColIndCt_d,        // nnzCt * sizeof(int)
+                                   cl_mem* csrValCt_d,           // nnzCt * sizeof(float) - Single Precision
+                                   int* nnzC,                    // nnz of Output matrix
+                                   clSparseSpGEMM spgemmInfo,
+                                   const clsparseControl control);
+
+
+ /*!
+ * \brief Fill sparsity pattern and values of output CSR C matrix  (CSR Sparse Matrix times Sparse Matrix operation)
+ * \details \f$ C \leftarrow A \ast B \f$ Step 4
+ * \param[out] csrRowPtrC_d  row offsets of output C matrix (CSR format)
+ * \param[out] csrColIndC_d  Column Indices of output C matrix (CSR format)
+ * \param[out] csrValC_d - Values of output C matrix (CSR format) 
+ * \param[in] csrRowPtrCt_d  temporary matrix row offsets
+ * \param[in] csrColIndCt_d temporary matrix column indices
+ * \param[in] csrValCt_d - temporary matrix values 
+ * \param[in] nnzC nnz of output C matrix 
+ * \param[in] spgemmInfo clSparseSpGEMM auxiliary data structre created with clsparseCreateInitSpmSpm
+ * \param[in] control A valid clsparseControl created with clsparseCreateControl
+ * \ingroup BLAS-3
+ */
+ CLSPARSE_EXPORT clsparseStatus
+     clsparseSpMSpM_FillScsrC(cl_mem csrRowPtrC_d,
+                            cl_mem csrColIndC_d,
+                            cl_mem csrValC_d,
+                            cl_mem csrRowPtrCt_d,
+                            cl_mem csrColIndCt_d,
+                            cl_mem csrValCt_d,
+                            int nnzC, clSparseSpGEMM spgemmInfo, const clsparseControl control);
 
 #ifdef __cplusplus
 }      // extern C
