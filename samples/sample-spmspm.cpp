@@ -325,5 +325,7 @@ int main(int argc, char*argv[])
     clReleaseMemObject(C.values);
     clReleaseMemObject(C.colIndices);
     clReleaseMemObject(C.rowOffsets);
+
+    std::cout << "Program completed successfully." << std::endl;
     return 0;
 } // End

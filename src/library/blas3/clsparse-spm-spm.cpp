@@ -769,7 +769,6 @@ clsparseSpMSpM_CreateInit(const clsparseCsrMatrix* sparseMatA,  //input
 CLSPARSE_EXPORT clsparseStatus
 clsparseSpMSpM_ReleaseSpmSpm(clSparseSpGEMM* spgemmInfo)
 {
-    delete *spgemmInfo;
     if (*spgemmInfo == nullptr)
     {
         return clsparseInvalidControlObject;
@@ -780,9 +779,12 @@ clsparseSpMSpM_ReleaseSpmSpm(clSparseSpGEMM* spgemmInfo)
     (*spgemmInfo)->queue_one.clear();
     (*spgemmInfo)->csrRowPtrCt_h.clear();
     (*spgemmInfo)->csrRowPtrC_h.clear();
+
+    delete *spgemmInfo;
+
     *spgemmInfo = nullptr;
     return clsparseSuccess;
-}
+}//
 
 CLSPARSE_EXPORT clsparseStatus
 clsparseSpMSpM_ComputennzCtExt(cl_mem csrRowPtrCt_d,        // Allocated memory of size rowPtrCtSizeInBytes
