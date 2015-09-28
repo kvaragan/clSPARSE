@@ -894,15 +894,15 @@ clsparseSpMSpM_ScsrSpmSpmnnzC(cl_mem csrRowPtrC_d,          // ( m+1) * sizeof(i
 
 // Fill sparsity pattern and values of C
 CLSPARSE_EXPORT clsparseStatus
-clsparseSpMSpM_FillScsrC(cl_mem csrRowPtrC_d,
-                         cl_mem csrColIndC_d, 
-                         cl_mem csrValC_d, 
-                         cl_mem csrRowPtrCt_d,
-                         cl_mem csrColIndCt_d,
-                         cl_mem csrValCt_d,
-                         int nnzC, 
-                         clSparseSpGEMM spgemmInfo, 
-                         const clsparseControl control)
+clsparseSpMSpM_FillScsrOutput(cl_mem csrRowPtrC_d,
+                              cl_mem csrColIndC_d, 
+                              cl_mem csrValC_d, 
+                              cl_mem csrRowPtrCt_d,
+                              cl_mem csrColIndCt_d,
+                              cl_mem csrValCt_d,
+                              int nnzC, 
+                              clSparseSpGEMM spgemmInfo, 
+                              const clsparseControl control)
 {
     cl_int run_status = CL_SUCCESS;
 

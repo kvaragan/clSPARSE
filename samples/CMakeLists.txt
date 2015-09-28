@@ -50,6 +50,7 @@ sample-initialization
 sample-axpy
 sample-spmv
 sample-cg
+sample-spmspm
 )
 
 set (SAMPLES_C
