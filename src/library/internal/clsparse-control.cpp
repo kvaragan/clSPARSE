@@ -81,6 +81,8 @@ clsparseStatus collectEnvParams(clsparseControl control)
     control->max_compute_units =
             device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>();
 
+    control->addressBits = device.getInfo<CL_DEVICE_ADDRESS_BITS>();
+
 #ifdef CL_DEVICE_DOUBLE_FP_CONFIG
     if ( device.getInfo<CL_DEVICE_EXTENSIONS>( ).find("cl_khr_fp64") != std::string::npos ||
          device.getInfo<CL_DEVICE_EXTENSIONS>( ).find("cl_amd_fp64") != std::string::npos )
@@ -114,6 +116,7 @@ clsparseCreateControl( cl_command_queue queue, clsparseStatus *status )
     control->async = false;
     control->extended_precision = false;
     control->dpfp_support = false;
+    control->addressBits = 64; // default 64 bits
 
     collectEnvParams( control );
 
