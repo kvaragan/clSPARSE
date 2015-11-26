@@ -198,9 +198,9 @@ extract_diagonal(clsparse::vector<T>& pDiag,
              << pA->colIndices
              << pA->values;
 
-    cl_uint predicted = subwave_size * size;
+    size_t predicted = subwave_size * size;
 
-    cl_uint global_work_size =
+    size_t global_work_size =
             wg_size * ((predicted + wg_size - 1 ) / wg_size);
     cl::NDRange local(wg_size);
     //cl::NDRange global(predicted > local[0] ? predicted : local[0]);

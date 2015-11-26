@@ -90,10 +90,10 @@ const clsparseScalarPrivate& pBeta,
 cldenseMatrixPrivate& pDenseC,
 const clsparseControl control )
 {
-    cl_uint nnz_per_row = pSparseCsrA.nnz_per_row( ); //average nnz per row
-    cl_uint wave_size = control->wavefront_size;
+    size_t nnz_per_row = pSparseCsrA.nnz_per_row( ); //average nnz per row
+    size_t wave_size = control->wavefront_size;
     cl_uint group_size = 256;    // 256 gives best performance!
-    cl_uint subwave_size = wave_size;
+    size_t subwave_size = wave_size;
 
     // adjust subwave_size according to nnz_per_row;
     // each wavefron will be assigned to the row of the csr matrix
@@ -108,7 +108,7 @@ const clsparseControl control )
     if( nnz_per_row < 4 )  { subwave_size = 2; }
 
     std::string params = std::string( ) +
-        "-DINDEX_TYPE=" + OclTypeTraits<cl_int>::type
+        "-DINDEX_TYPE=" + OclTypeTraits<cl_ulong>::type
         + " -DVALUE_TYPE=" + OclTypeTraits<T>::type
         + " -DSIZE_TYPE=" + OclTypeTraits<cl_ulong>::type
         + " -DWG_SIZE=" + std::to_string( group_size )
@@ -142,12 +142,12 @@ const clsparseControl control )
 
     // subwave takes care of each row in matrix;
     // predicted number of subwaves to be executed;
-    cl_uint predicted = subwave_size * pSparseCsrA.num_rows;
+    size_t predicted = subwave_size * pSparseCsrA.num_rows;
 
     // if NVIDIA is used it does not allow to run the group size
     // which is not a multiplication of group_size. Don't know if that
     // have an impact on performance
-    cl_uint global_work_size =
+    size_t global_work_size =
         group_size* ( ( predicted + group_size - 1 ) / group_size );
     cl::NDRange local( group_size );
     //cl::NDRange global(predicted > local[0] ? predicted : local[0]);

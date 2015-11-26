@@ -84,7 +84,7 @@ elementwise_transform(cldenseVectorPrivate* r,
 
     kWrapper << size << r->values << x->values << y->values;
 
-    int blocks = (size + wg_size - 1) / wg_size;
+    size_t blocks = (size + wg_size - 1) / wg_size;
 
     cl::NDRange local(wg_size);
     cl::NDRange global(blocks * wg_size);
@@ -139,7 +139,7 @@ elementwise_transform(clsparse::array_base<T>& r,
 
     kWrapper << size << r.data() << x.data() << y.data();
 
-    int blocks = (size + wg_size - 1) / wg_size;
+    size_t blocks = (size + wg_size - 1) / wg_size;
 
     cl::NDRange local(wg_size);
     cl::NDRange global(blocks * wg_size);

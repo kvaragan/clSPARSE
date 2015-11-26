@@ -496,7 +496,7 @@ extern "C" {
     * \ingroup FILE
     */
     CLSPARSE_EXPORT clsparseStatus
-        clsparseHeaderfromFile( cl_int* nnz, cl_int* row, cl_int* col, const char* filePath );
+        clsparseHeaderfromFile(size_t* nnz, size_t* row, size_t* col, const char* filePath);
 
     /*!
     * \brief Read sparse matrix data from file in single precision COO format

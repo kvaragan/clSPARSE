@@ -196,7 +196,7 @@ public:
         offValues = offColInd = offRowOff = offRowBlocks = rowBlockSize = 0;
     }
 
-    cl_uint nnz_per_row() const
+    size_t nnz_per_row() const
     {
         return num_nonzeros / num_rows;
     }
@@ -233,7 +233,7 @@ public:
         offValues = offColInd = offRowInd = 0;
     }
 
-    cl_uint nnz_per_row( ) const
+    size_t nnz_per_row( ) const
     {
         return num_nonzeros / num_rows;
     }

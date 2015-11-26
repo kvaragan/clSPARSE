@@ -171,9 +171,9 @@ offsets_to_indices(clsparse::vector<T>& indices,
 
     // subwave takes care of each row in matrix;
     // predicted number of subwaves to be executed;
-    cl_uint predicted = subwave_size * num_rows;
+    SizeType predicted = subwave_size * num_rows;
 
-    cl_uint global_work_size =
+    SizeType global_work_size =
             group_size* ((predicted + group_size - 1 ) / group_size);
 
     cl::NDRange local(group_size);
@@ -256,9 +256,9 @@ transform_csr_2_dense(/*csr matrix*/
 
     // subwave takes care of each row in matrix;
     // predicted number of subwaves to be executed;
-    cl_uint predicted = subwave_size * num_rows;
+    SizeType predicted = subwave_size * num_rows;
 
-    cl_uint global_work_size =
+    SizeType global_work_size =
             group_size* ((predicted + group_size - 1 ) / group_size);
 
     cl::NDRange local(group_size);

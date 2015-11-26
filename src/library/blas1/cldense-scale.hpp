@@ -69,8 +69,8 @@ scale( clsparse::array_base<T>& pResult,
              << pAlpha.data()
              << offset;
 
-    int blocksNum = (size + group_size - 1) / group_size;
-    int globalSize = blocksNum * group_size;
+    size_t blocksNum = (size + group_size - 1) / group_size;
+    size_t globalSize = blocksNum * group_size;
 
     cl::NDRange local(group_size);
     cl::NDRange global (globalSize);

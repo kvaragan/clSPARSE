@@ -23,6 +23,12 @@
 #define NOMINMAX
 #endif
 
+#if defined( _WIN32 ) || defined(_WIN64)
+#define SIZET  "I"
+#else
+#define SIZET "z"
+#endif
+
 #include "clSPARSE.h"
 
 #if defined(__APPLE__) || defined(__MACOSX)

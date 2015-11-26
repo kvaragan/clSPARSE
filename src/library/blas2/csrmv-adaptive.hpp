@@ -89,7 +89,7 @@ csrmv_adaptive( const clsparseScalarPrivate* pAlpha,
     // Setting global work size to half the row block size because we are only
     // using half the row blocks buffer for actual work.
     // The other half is used for the extended precision reduction.
-    cl_uint global_work_size = ( (pCsrMatx->rowBlockSize/2) - 1 ) * group_size;
+    size_t global_work_size = ( (pCsrMatx->rowBlockSize/2) - 1 ) * group_size;
     cl::NDRange local( group_size );
     cl::NDRange global( global_work_size > local[ 0 ] ? global_work_size : local[ 0 ] );
 
@@ -171,7 +171,7 @@ csrmv_adaptive( const clsparse::array_base<T>& pAlpha,
     // Setting global work size to half the row block size because we are only
     // using half the row blocks buffer for actual work.
     // The other half is used for the extended precision reduction.
-    cl_uint global_work_size = ( (pCsrMatx->rowBlockSize/2) - 1 ) * group_size;
+    size_t global_work_size = ((pCsrMatx->rowBlockSize / 2) - 1) * group_size;
     cl::NDRange local( group_size );
     cl::NDRange global( global_work_size > local[ 0 ] ? global_work_size : local[ 0 ] );
 

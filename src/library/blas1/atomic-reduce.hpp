@@ -77,8 +77,8 @@ atomic_reduce(clsparseScalarPrivate* pR,
     kWrapper << pR->value;
     kWrapper << pX->values;
 
-    int blocksNum = (pX->num_values + wg_size - 1) / wg_size;
-    int globalSize = blocksNum * wg_size;
+    size_t blocksNum = (pX->num_values + wg_size - 1) / wg_size;
+    size_t globalSize = blocksNum * wg_size;
 
     cl::NDRange local(wg_size);
     cl::NDRange global(globalSize);
@@ -141,8 +141,8 @@ atomic_reduce(clsparse::array_base<T>& pR,
     kWrapper << pR.data();
     kWrapper << pX.data();
 
-    int blocksNum = (pX.size() + wg_size - 1) / wg_size;
-    int globalSize = blocksNum * wg_size;
+    size_t blocksNum = (pX.size() + wg_size - 1) / wg_size;
+    size_t globalSize = blocksNum * wg_size;
 
     cl::NDRange local(wg_size);
     cl::NDRange global(globalSize);
