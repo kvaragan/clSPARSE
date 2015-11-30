@@ -183,7 +183,7 @@ csrmv_vector(const clsparse::array_base<T>& pAlpha,
     // if NVIDIA is used it does not allow to run the group size
     // which is not a multiplication of group_size. Don't know if that
     // have an impact on performance
-    cl_uint global_work_size =
+    size_t global_work_size =
             group_size* ((predicted + group_size - 1 ) / group_size);
     cl::NDRange local(group_size);
     //cl::NDRange global(predicted > local[0] ? predicted : local[0]);

@@ -274,10 +274,10 @@ VALUE_TYPE atomic_two_sum_float( global VALUE_TYPE * restrict const x_ptr,
 VALUE_TYPE sum2_reduce( VALUE_TYPE cur_sum,
         VALUE_TYPE * restrict const err,
         __local VALUE_TYPE * restrict const partial,
-        const unsigned int lid,
-        const unsigned int thread_lane,
-        const unsigned int max_size,
-        const unsigned int reduc_size )
+        const INDEX_TYPE lid,
+        const INDEX_TYPE thread_lane,
+        const INDEX_TYPE max_size,
+        const INDEX_TYPE reduc_size )
 {
     if ( max_size > reduc_size )
     {
@@ -311,17 +311,17 @@ VALUE_TYPE sum2_reduce( VALUE_TYPE cur_sum,
 R"(
 __kernel void
 csrmv_adaptive(__global const VALUE_TYPE * restrict const vals,
-                       __global const unsigned int * restrict const cols,
-                       __global const unsigned int * restrict const rowPtrs,
+                       __global const INDEX_TYPE * restrict const cols,
+                       __global const INDEX_TYPE * restrict const rowPtrs,
                        __global const VALUE_TYPE * restrict const vec,
                        __global VALUE_TYPE * restrict const out,
-                       __global unsigned long * restrict const rowBlocks,
+                       __global INDEX_TYPE * restrict const rowBlocks,
                        __global const VALUE_TYPE * restrict const pAlpha,
                        __global const VALUE_TYPE * restrict const pBeta)
 {
    __local VALUE_TYPE partialSums[BLOCKSIZE];
-   const unsigned int gid = get_group_id(0);
-   const unsigned int lid = get_local_id(0);
+   const INDEX_TYPE gid = get_group_id(0);
+   const INDEX_TYPE lid = get_local_id(0);
    const VALUE_TYPE alpha = *pAlpha;
    const VALUE_TYPE beta = *pBeta;
 
@@ -346,9 +346,9 @@ csrmv_adaptive(__global const VALUE_TYPE * restrict const vals,
    // know when the first workgroup for that row has finished initializing the output
    // value. While this bit is the same as the first workgroup's flag bit, this
    // workgroup will spin-loop.
-   unsigned int row = ((rowBlocks[gid] >> (64-ROWBITS)) & ((1UL << ROWBITS) - 1UL));
-   unsigned int stop_row = ((rowBlocks[gid + 1] >> (64-ROWBITS)) & ((1UL << ROWBITS) - 1UL));
-   unsigned int num_rows = stop_row - row;
+   INDEX_TYPE row = ((rowBlocks[gid] >> (64-ROWBITS)) & ((1UL << ROWBITS) - 1UL));
+   INDEX_TYPE stop_row = ((rowBlocks[gid + 1] >> (64-ROWBITS)) & ((1UL << ROWBITS) - 1UL));
+   INDEX_TYPE num_rows = stop_row - row;
 
    // Get the "workgroup within this long row" ID out of the bottom bits of the row block.
    unsigned int wg = rowBlocks[gid] & ((1 << WGBITS) - 1);
@@ -403,11 +403,11 @@ csrmv_adaptive(__global const VALUE_TYPE * restrict const vals,
        // For instance, with workgroup size 256, 2 rows = 128 threads, 3 rows = 64
        // threads, 4 rows = 64 threads, 5 rows = 32 threads, etc.
        //int numThreadsForRed = get_local_size(0) >> ((CHAR_BIT*sizeof(unsigned int))-clz(num_rows-1));
-       const unsigned int numThreadsForRed = wg; // Same calculation as above, done on host.
+       const INDEX_TYPE numThreadsForRed = wg; // Same calculation as above, done on host.
 
        // Stream all of this row block's matrix values into local memory.
        // Perform the matvec in parallel with this work.
-       const unsigned int col = rowPtrs[row] + lid;
+       const INDEX_TYPE col = rowPtrs[row] + lid;
       if (gid != (get_num_groups(0) - 1))
       {
           for(int i = 0; i < BLOCKSIZE; i += WG_SIZE)
@@ -422,8 +422,8 @@ csrmv_adaptive(__global const VALUE_TYPE * restrict const vals,
           // However, this may change in the future (e.g. with shared virtual memory.)
           // This causes a minor performance loss because this is the last workgroup
           // to be launched, and this loop can't be unrolled.
-          const unsigned int max_to_load = rowPtrs[stop_row] - rowPtrs[row];
-          for(int i = 0; i < max_to_load; i += WG_SIZE)
+          const INDEX_TYPE max_to_load = rowPtrs[stop_row] - rowPtrs[row];
+          for(INDEX_TYPE i = 0; i < max_to_load; i += WG_SIZE)
               partialSums[lid + i] = alpha * vals[col + i] * vec[cols[col + i]];
       }
       barrier(CLK_LOCAL_MEM_FENCE);
@@ -441,10 +441,10 @@ csrmv_adaptive(__global const VALUE_TYPE * restrict const vals,
           // numThreadsForRed guaranteed to be a power of two, so the clz code below
           // avoids an integer divide. ~2% perf gain in EXTRA_PRECISION.
           //size_t st = lid/numThreadsForRed;
-          const unsigned int local_row = row + (lid >> (31 - clz(numThreadsForRed)));
-          const unsigned int local_first_val = rowPtrs[local_row] - rowPtrs[row];
-          const unsigned int local_last_val = rowPtrs[local_row + 1] - rowPtrs[row];
-          const unsigned int threadInBlock = lid & (numThreadsForRed - 1);
+          const INDEX_TYPE local_row = row + (lid >> (31 - clz(numThreadsForRed)));
+          const INDEX_TYPE local_first_val = rowPtrs[local_row] - rowPtrs[row];
+          const INDEX_TYPE local_last_val = rowPtrs[local_row + 1] - rowPtrs[row];
+          const INDEX_TYPE threadInBlock = lid & (numThreadsForRed - 1);
 
           // Not all row blocks are full -- they may have an odd number of rows. As such,
           // we need to ensure that adjacent-groups only work on real data for this rowBlock.
@@ -453,7 +453,7 @@ csrmv_adaptive(__global const VALUE_TYPE * restrict const vals,
               // This is dangerous -- will infinite loop if your last value is within
               // numThreadsForRed of MAX_UINT. Noticable performance gain to avoid a
               // long induction variable here, though.
-              for(unsigned int local_cur_val = local_first_val + threadInBlock;
+              for(INDEX_TYPE local_cur_val = local_first_val + threadInBlock;
                       local_cur_val < local_last_val;
                       local_cur_val += numThreadsForRed)
                   temp_sum = two_sum(partialSums[local_cur_val], temp_sum, &sumk_e);
@@ -468,7 +468,7 @@ csrmv_adaptive(__global const VALUE_TYPE * restrict const vals,
           // LDS is full up to {workgroup size} entries.
           // Now we perform a parallel reduction that sums together the answers for each
           // row in parallel, leaving us an answer in 'temp_sum' for each row.
-          for (int i = (WG_SIZE >> 1); i > 0; i >>= 1)
+          for (INDEX_TYPE i = (WG_SIZE >> 1); i > 0; i >>= 1)
           {
               barrier( CLK_LOCAL_MEM_FENCE );
               temp_sum = sum2_reduce(temp_sum, &new_error, partialSums, lid, threadInBlock, numThreadsForRed, i);
@@ -494,8 +494,8 @@ csrmv_adaptive(__global const VALUE_TYPE * restrict const vals,
           unsigned int local_row = row + lid;
           while(local_row < stop_row)
           {
-              int local_first_val = (rowPtrs[local_row] - rowPtrs[row]);
-              int local_last_val = rowPtrs[local_row + 1] - rowPtrs[row];
+              INDEX_TYPE local_first_val = (rowPtrs[local_row] - rowPtrs[row]);
+              INDEX_TYPE local_last_val = rowPtrs[local_row + 1] - rowPtrs[row];
               temp_sum = 0.;
               sumk_e = 0.;
               for (int local_cur_val = local_first_val; local_cur_val < local_last_val; local_cur_val++)
@@ -537,17 +537,17 @@ R"(
            // Load in a bunch of partial results into your register space, rather than LDS (no contention)
            // Then dump the partially reduced answers into the LDS for inter-work-item reduction.
            // Using a long induction variable to make sure unsigned int overflow doesn't break things.
-           for (long j = vecStart + lid; j < vecEnd; j+=WG_SIZE)
+           for (INDEX_TYPE j = vecStart + lid; j < vecEnd; j+=WG_SIZE)
            {
-               const unsigned int col = cols[(unsigned int)j];
-               temp_sum = two_fma(alpha*vals[(unsigned int)j], vec[col], temp_sum, &sumk_e);
+               const INDEX_TYPE col = cols[j];
+               temp_sum = two_fma(alpha*vals[j], vec[col], temp_sum, &sumk_e);
            }
 
            temp_sum = two_sum(temp_sum, sumk_e, &new_error);
            partialSums[lid] = temp_sum;
 
            // Reduce partial sums
-           for (int i = (WG_SIZE >> 1); i > 0; i >>= 1)
+           for (INDEX_TYPE i = (WG_SIZE >> 1); i > 0; i >>= 1)
            {
                barrier( CLK_LOCAL_MEM_FENCE);
                temp_sum = sum2_reduce(temp_sum, &new_error, partialSums, lid, lid, WG_SIZE, i);
@@ -615,7 +615,7 @@ R"(
            // Don't put BLOCK_MULTIPLIER*BLOCKSIZE as the stop point, because
            // some GPU compilers will *aggressively* unroll this loop.
            // That increases register pressure and reduces occupancy.
-           for (int j = 0; j < (int)(vecEnd - col); j += WG_SIZE)
+           for (INDEX_TYPE j = 0; j < (INDEX_TYPE)(vecEnd - col); j += WG_SIZE)
            {
                temp_sum = two_fma(alpha*vals[col + j], vec[cols[col + j]], temp_sum, &sumk_e);
 #if 2*WG_SIZE <= BLOCK_MULTIPLIER*BLOCKSIZE
@@ -627,7 +627,7 @@ R"(
        }
        else
        {
-           for(int j = 0; j < (int)(vecEnd - col); j += WG_SIZE)
+           for(INDEX_TYPE j = 0; j < (INDEX_TYPE)(vecEnd - col); j += WG_SIZE)
                temp_sum = two_fma(alpha*vals[col + j], vec[cols[col + j]], temp_sum, &sumk_e);
        }
 
@@ -635,7 +635,7 @@ R"(
        partialSums[lid] = temp_sum;
 
        // Reduce partial sums
-       for (int i = (WG_SIZE >> 1); i > 0; i >>= 1)
+       for (INDEX_TYPE i = (WG_SIZE >> 1); i > 0; i >>= 1)
        {
            barrier( CLK_LOCAL_MEM_FENCE);
            temp_sum = sum2_reduce(temp_sum, &new_error, partialSums, lid, lid, WG_SIZE, i);
@@ -646,7 +646,7 @@ R"(
            atomic_two_sum_float(&out[row], temp_sum, &new_error);
 
 #ifdef EXTENDED_PRECISION
-           unsigned int error_loc = get_num_groups(0) + first_wg_in_row + 1;
+           INDEX_TYPE error_loc = get_num_groups(0) + first_wg_in_row + 1;
            // The last half of the rowBlocks buffer is used to hold errors.
            atomic_add_float(&(rowBlocks[error_loc]), new_error);
            // Coordinate across all of the workgroups in this coop in order to have
@@ -665,7 +665,7 @@ R"(
 #ifdef DOUBLE
                new_error = as_double(rowBlocks[error_loc]);
 #else
-               new_error = as_float((int)rowBlocks[error_loc]);
+               new_error = as_float((INDEX_TYPE)rowBlocks[error_loc]);
 #endif
                // Don't need to work atomically here, because this is the only workgroup
                // left working on this row.

@@ -39,7 +39,7 @@ csrmv_adaptive( const clsparseScalarPrivate* pAlpha,
     const cl_uint group_size = 256;
 
     std::string params = std::string( )
-    + " -DINDEX_TYPE=uint"
+    + " -DINDEX_TYPE=" + OclTypeTraits<cl_ulong>::type
     + " -DROWBITS=" + std::to_string( ROW_BITS )
     + " -DWGBITS=" + std::to_string( WG_BITS )
     + " -DVALUE_TYPE=" + OclTypeTraits<T>::type
