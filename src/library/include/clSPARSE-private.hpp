@@ -51,4 +51,6 @@ const cl_uint BLKSIZE = 1024;
 const cl_uint BLOCK_MULTIPLIER = 3;
 const cl_uint ROWS_FOR_VECTOR = 1;
 
+const size_t GPUADDRESS32WORD = 32;
+const size_t GPUADDRESS64WORD = 64;
 #endif

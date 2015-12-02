@@ -64,8 +64,7 @@ clsparseStatus compute_nnzCt(int _m, cl_mem csrRowPtrA, cl_mem csrColIndA, cl_me
      const std::string params = std::string() +
                "-DINDEX_TYPE=" + OclTypeTraits<cl_int>::type
             + " -DVALUE_TYPE=" + OclTypeTraits<cl_float>::type;
-    
-    
+        
     cl::Kernel kernel = KernelCache::get(control->queue,"SpGEMM_computeNnzCt_kernels", "compute_nnzCt_kernel", params);
     
     size_t szLocalWorkSize[1];

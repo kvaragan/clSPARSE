@@ -37,9 +37,21 @@ scale( clsparse::array_base<T>& pResult,
     //const int group_size = control->max_wg_size;
 
     std::string params = std::string()
-            + " -DSIZE_TYPE=" + OclTypeTraits<cl_ulong>::type
             + " -DVALUE_TYPE="+ OclTypeTraits<T>::type
             + " -DWG_SIZE=" + std::to_string(group_size);
+
+    if (control->addressBits == GPUADDRESS64WORD)
+    {
+        std::string options = std::string()
+            + " -DSIZE_TYPE=" + OclTypeTraits<cl_ulong>::type;
+        params.append(options);
+    }
+    else
+    {
+        std::string options = std::string()
+            + " -DSIZE_TYPE=" + OclTypeTraits<cl_uint>::type;
+        params.append(options);
+    }
 
     if(typeid(T) == typeid(cl_double))
     {
